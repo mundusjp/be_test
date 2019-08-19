@@ -10,6 +10,7 @@ import (
 
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/gorilla/mux"
+	"github.com/jinzhu/now"
 )
 
 //Message builds json message
@@ -45,7 +46,9 @@ func (rts Rates) sevenDaysAverage() string {
 func showExchangeRates(w http.ResponseWriter, r *http.Request) { //Method= GET ==> output = all exchange rates from db
 	db := dbConn()
 	date := r.URL.Query().Get("date")
-	exchanges, err := db.Query("SELECT * FROM exchange ORDER BY id ASC")
+	startday, err := now.Parse(date)
+	lastweek := startday.AddDate(0, 0, -6)
+	exchanges, err := db.Query("SELECT * FROM exchange ORDER BY id ASC WHERE")
 	if err != nil {
 		panic(err.Error())
 	}
@@ -59,7 +62,7 @@ func showExchangeRates(w http.ResponseWriter, r *http.Request) { //Method= GET =
 			panic(err.Error())
 		}
 		exid := strconv.Itoa(id)
-		rates, err := db.Query("SELECT * from rates WHERE exchange_id=" + exid + " ORDER BY id ASC")
+		rates, err := db.Query("SELECT * from rates WHERE exchange_id=" + exid + " WHERE date BETWEEN '"+lastweek+"' AND '"+startday"' ORDER BY id ASC ")
 		rt := Rate{}
 		var rts Rates
 		for rates.Next() {
@@ -70,7 +73,6 @@ func showExchangeRates(w http.ResponseWriter, r *http.Request) { //Method= GET =
 				panic(err.Error())
 			}
 			rt.Date = date
-			rt.Rate = rate
 			rts = append(rts, rt)
 		}
 
