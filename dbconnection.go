@@ -4,7 +4,7 @@ import "database/sql"
 
 func dbConn() (db *sql.DB) {
 	dbDriver := "mysql"
-	dbProtocol := "ip4:1"
+	dbProtocol := "tcp"
 	dbAddress := "192.168.64.2"
 	dbName := "be_test"
 	dbUser := "ipcc"

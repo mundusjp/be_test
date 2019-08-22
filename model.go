@@ -11,16 +11,23 @@ type Rate struct {
 // Rates slices
 type Rates []Rate
 
-// Average struct initiation #convert to json
-type Average struct {
-	Avg string `json:"7-day-avg"`
+// Floats slice
+type Floats []float64
+
+// Response untuk template json
+type Response struct {
+	Status  int    `json:"status"`
+	Message string `json:"message"`
+	Data    []Exchange
 }
 
 // Exchange struct initiation #convert to json
 type Exchange struct {
-	ID      int     `json:"id"`
-	From    string  `json:"from"`
-	To      string  `json:"to"`
-	Rates   Rates   `json:"rates"`
-	Average Average `json:"7-day-avg"`
+	ID       int    `json:"id"`
+	From     string `json:"from"`
+	To       string `json:"to"`
+	Rates    Rates  `json:"rates"`
+	Rate     string `json:"rate"`
+	Average  string `json:"7-day-avg"`
+	Variance string `json:"variance"`
 }
