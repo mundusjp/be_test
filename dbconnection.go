@@ -5,11 +5,10 @@ import "database/sql"
 func dbConn() (db *sql.DB) {
 	dbDriver := "mysql"
 	dbProtocol := "tcp"
-	dbAddress := "192.168.64.2"
+	dbAddress := "localhost:3306"
 	dbName := "be_test"
-	dbUser := "ipcc"
-	dbPass := "Makanan1%"
-	db, err := sql.Open(dbDriver, dbUser+":"+dbPass+"@"+dbProtocol+"("+dbAddress+")/"+dbName)
+	dbUser := "root"
+	db, err := sql.Open(dbDriver, dbUser+"@"+dbProtocol+"("+dbAddress+")/"+dbName)
 	if err != nil {
 		panic(err.Error())
 	}

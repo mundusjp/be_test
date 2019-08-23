@@ -74,6 +74,7 @@ return float(avg).
 
 Input: []date date
 Output: JSON{status:"", message:"", Data:"[]Exchange{}]"}
+******************************************************************
 */
 func showExchangeRates(w http.ResponseWriter, r *http.Request) {
 	// request fields : date
@@ -90,14 +91,13 @@ func showExchangeRates(w http.ResponseWriter, r *http.Request) {
 	v := govalidator.New(opts)
 	// initiate validation()
 	e := v.Validate()
-	// check if any rule violation or validation error
-	vErr := map[string]interface{}{"validationError": e} // validation error variable
 
 	// if there is a validation error, it will return the error in json
-	if vErr != nil {
+	if e != nil {
+		// check if any rule violation or validation error
+		vErr := map[string]interface{}{"status": 400, "validationError": e} // validation error variable
 		w.Header().Set("Content-type", "application/json")
 		json.NewEncoder(w).Encode(vErr)
-		panic(vErr)
 	}
 
 	// define variables
@@ -231,10 +231,9 @@ variance of rates.
 
 Input: []string from, []string to
 Output: JSON{status:"", message:"", Data:"Exchange{}"}
+******************************************************************
 */
 func getExchangeRate(w http.ResponseWriter, r *http.Request) {
-	// request fields : from , to
-
 	// defining the rules for validation
 	rules := govalidator.MapData{ // fields requirement & validation rules
 		"from": []string{"required", "between:3,4"},
@@ -253,75 +252,110 @@ func getExchangeRate(w http.ResponseWriter, r *http.Request) {
 	// execute the validation
 	e := v.Validate()
 
-	// defining vErr as error message if validation error occured
-	vErr := map[string]interface{}{"validationError": e} // validation error variable
-
 	// if there is a validation error, it will return the error in json
-	if vErr != nil {
+	if e != nil {
+		// defining vErr as error message if validation error occured
+		vErr := map[string]interface{}{"status": 400, "validationError": e} // validation error variable
 		w.Header().Set("Content-type", "application/json")
 		json.NewEncoder(w).Encode(vErr)
-		panic(vErr)
 	}
 
-	var excs []Exchange
-	var response Response
-	exc := Exchange{}
+	// defining all of the variables used to store the data from database
+	var excs []Exchange   // slice of Exchange struct
+	var response Response // JSON Response Template
+	exc := Exchange{}     // Exchange struct
+
+	// connect to the database
 	db := dbConn()
+
+	// getting all the request parameter
 	from := r.URL.Query().Get("from")
 	to := r.URL.Query().Get("to")
+
+	// execute query to get the detail of the exchange rate from database
 	exchanges, err := db.Query("SELECT * FROM exchange WHERE `from`='" + from + "' AND `to`='" + to + "' ORDER BY id ASC")
 	if err != nil {
-		panic(err.Error())
+		panic(err.Error()) // log error if failed pulling data from database
 	}
 
+	// loop through all exchanges rows
 	for exchanges.Next() {
+		// initiate all variables used to store the pulled data
 		var id, ids int
 		var from, to, avg string
 		var rts Rates
 		var arr []float64
 		var min, max float64
 		rt := Rate{}
+
+		// assign all the pulled values to declared variables
 		err = exchanges.Scan(&id, &from, &to)
 		if err != nil {
-			panic(err.Error())
+			panic(err.Error()) // log error if assignment failed
 		}
 		exid := id
+
+		//Query to get all of the exchange rates from specified exchange currencies
 		rates, err := db.Query("SELECT * from rates WHERE exchange_id=" + strconv.Itoa(exid) + " ORDER BY id DESC LIMIT 7")
 		if err != nil {
-			panic(err.Error())
+			panic(err.Error()) // log error if query failed
 		}
+
+		// loop through all rates
 		for rates.Next() {
+			// initiate variable to store pulled data
 			var rate float64
 			var date string
+
+			// assign the values to variables
 			err = rates.Scan(&ids, &exid, &rate, &date)
 			if err != nil {
 				log.Print("Error in Scanning Rates")
-				panic(err.Error())
+				panic(err.Error()) // log error if assignment failed
 
 			}
+
+			// assign all values to Rate{}
 			rt.ID = ids
 			rt.ExchangeID = exid
 			rt.Date = date
 			rt.Rate = rate
+
+			// push the all of the rate to array of rate []float
 			arr = append(arr, rt.Rate)
+
+			// push the Rate{} to slices of []Rate{}
 			rts = append(rts, rt)
 		}
+
+		// get the minimum and maximum values from arr[]
 		min, max = MinMax(arr)
+
+		// get the variance of the rates
 		variance := max - min
+
+		// get the 7 days average of the rates
 		avg = rts.sevenDaysAverage()
+
+		// assign all the values to Exchange{}
 		exc.Average = avg
 		exc.ID = id
 		exc.From = from
 		exc.To = to
 		exc.Rates = rts
 		exc.Variance = fmt.Sprintf("%g", variance)
+
+		//push all of the Exchange{} to Slices of []Exchange{}
 		excs = append(excs, exc)
 	}
+	// assign values to JSON Response
 	response.Status = 200
 	response.Message = "Success"
 	response.Data = excs
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
+
+	// close connection to database
 	defer db.Close()
 }
 
@@ -334,29 +368,102 @@ It will insert new from and to data to exchange table in database.
 
 Input: []string from, []string to
 Output: JSON{status:"", message:""}, console log
+******************************************************************
 */
-func createExchangeRate(w http.ResponseWriter, r *http.Request) {
+func createExchangeCurrency(w http.ResponseWriter, r *http.Request) {
+	// defining the rules for validation
+	rules := govalidator.MapData{ // fields requirement & validation rules
+		"from": []string{"required", "between:3,4"},
+		"to":   []string{"required", "between:3,4"},
+	}
+
+	// defining the options for validation
+	opts := govalidator.Options{
+		Request:         r,     // request object
+		Rules:           rules, // rules map
+		RequiredDefault: true,  //all field must be passed to the rules
+	}
+
+	// defining v as new validator
+	v := govalidator.New(opts)
+	// execute the validation
+	e := v.Validate()
+	// if there is a validation error, it will return the error in json
+	if e != nil {
+		// defining vErr as error message if validation error occured
+		vErr := map[string]interface{}{"status": 400, "validationError": e} // validation error variable
+		w.Header().Set("Content-type", "application/json")
+		json.NewEncoder(w).Encode(vErr)
+	}
+
+	// connect to the SQL database
 	db := dbConn()
+	// variable response for JSON Response Struct
 	var response Response
+
+	// getting all request parametes
 	from := r.URL.Query().Get("from")
 	to := r.URL.Query().Get("to")
+
+	//preparing the query to be executed. if error occured, will be logged in console
 	insert, err := db.Prepare("INSERT INTO exchange (`from` , `to`) VALUES (?,?)")
 	if err != nil {
-		panic(err.Error())
+		panic(err.Error()) // log the error if preparation of inserting fails
 	}
-	_, err = insert.Exec(from, to)
+	_, err = insert.Exec(from, to) // execute the insert query
 	if err != nil {
-		panic(err.Error())
+		panic(err.Error()) // log the error if inserting fails
 	}
-	response.Status = 200
+	// response code 201 if it succeed inserting the request parameter to database
+	response.Status = 201
 	response.Message = "Success"
 	log.Print("Inserted data to database")
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
+	// close the connection to database
 	defer db.Close()
 }
 
+/*
+******************************************************************
+					Input Daily Exchange Rate
+		for use case: User wants to add an exchange rate to the list
+******************************************************************
+It will insert daily exchange rates to table in database.
+
+Input: []string from, []string to, []date date, []float64 rate
+Output: JSON{status:"", message:""}, console log
+******************************************************************
+*/
 func inputDailyExchangeRate(w http.ResponseWriter, r *http.Request) {
+	// defining the rules for validation
+	rules := govalidator.MapData{ // fields requirement & validation rules
+		"from": []string{"required", "between:3,4"},
+		"to":   []string{"required", "between:3,4"},
+		"date": []string{"required", "date"},
+		"rate": []string{"required", "numeric"},
+	}
+
+	// defining the options for validation
+	opts := govalidator.Options{
+		Request:         r,     // request object
+		Rules:           rules, // rules map
+		RequiredDefault: true,  //all field must be passed to the rules
+	}
+
+	// defining v as new validator
+	v := govalidator.New(opts)
+	// execute the validation
+	e := v.Validate()
+
+	// if there is a validation error, it will return the error in json
+	if e != nil {
+		// defining vErr as error message if validation error occured
+		vErr := map[string]interface{}{"status": 400, "validationError": e} // validation error variable
+		w.Header().Set("Content-type", "application/json")
+		json.NewEncoder(w).Encode(vErr)
+	}
+
 	db := dbConn()
 	var id int
 	var response Response
@@ -379,14 +486,39 @@ func inputDailyExchangeRate(w http.ResponseWriter, r *http.Request) {
 		}
 		insert.Exec(id, rt, date)
 	}
-	response.Status = 200
+	response.Status = 201
 	response.Message = "Success"
 	log.Print("Inserted data to database")
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
 }
 
-func deleteExchangeRate(w http.ResponseWriter, r *http.Request) {
+func deleteExchangeCurrency(w http.ResponseWriter, r *http.Request) {
+	// defining the rules for validation
+	rules := govalidator.MapData{ // fields requirement & validation rules
+		"id": []string{"required", "numeric"},
+	}
+
+	// defining the options for validation
+	opts := govalidator.Options{
+		Request:         r,     // request object
+		Rules:           rules, // rules map
+		RequiredDefault: true,  //all field must be passed to the rules
+	}
+
+	// defining v as new validator
+	v := govalidator.New(opts)
+	// execute the validation
+	e := v.Validate()
+
+	// defining vErr as error message if validation error occured
+	vErr := map[string]interface{}{"status": 400, "validationError": e} // validation error variable
+
+	// if there is a validation error, it will return the error in json
+	if vErr != nil {
+		w.Header().Set("Content-type", "application/json")
+		json.NewEncoder(w).Encode(vErr)
+	}
 	db := dbConn()
 	var response Response
 	id := r.URL.Query().Get("id")

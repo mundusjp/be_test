@@ -9,10 +9,13 @@ import (
 )
 
 func main() {
+	// initiate a new router
 	r := mux.NewRouter()
+
+	//defining all the routes and serve at port:8080
 	r.HandleFunc("/api/exchange-rate", getExchangeRate).Methods("GET")
-	r.HandleFunc("/api/exchange-rate/delete", deleteExchangeRate).Methods("DELETE")
-	r.HandleFunc("/api/exchange-rate/insert", createExchangeRate).Methods("POST")
+	r.HandleFunc("/api/exchange-currency/delete", deleteExchangeCurrency).Methods("DELETE")
+	r.HandleFunc("/api/exchange-currency/insert", createExchangeCurrency).Methods("POST")
 	r.HandleFunc("/api/exchange-rates", showExchangeRates).Methods("GET")
 	r.HandleFunc("/api/daily-exchange-rates/insert", inputDailyExchangeRate).Methods("POST")
 	r.Handle("/", r)
